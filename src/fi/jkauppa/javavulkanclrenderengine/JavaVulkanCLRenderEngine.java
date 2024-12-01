@@ -42,7 +42,7 @@ import org.lwjgl.vulkan.KHRDisplaySwapchain;
 import org.lwjgl.vulkan.KHRSurface;
 import org.lwjgl.vulkan.KHRSwapchain;
 import org.lwjgl.vulkan.NVRayTracing;
-import org.lwjgl.vulkan.VK11;
+import org.lwjgl.vulkan.VK13;
 import org.lwjgl.vulkan.VkApplicationInfo;
 import org.lwjgl.vulkan.VkAttachmentDescription;
 import org.lwjgl.vulkan.VkAttachmentReference;
@@ -87,7 +87,7 @@ import org.lwjgl.vulkan.VkVertexInputBindingDescription;
 //import static org.lwjgl.vulkan.EXTDebugReport.*;
 //import static org.lwjgl.vulkan.KHRSwapchain.*;
 //import static org.lwjgl.vulkan.KHRSurface.*;
-//import static org.lwjgl.vulkan.VK11.*;
+//import static org.lwjgl.vulkan.VK13.*;
 //import static org.lwjgl.glfw.GLFWVulkan.*;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
@@ -101,7 +101,7 @@ import fi.jkauppa.javavulkanclrenderengine.ComputeLib.Device;
 import fi.jkauppa.javarenderengine.UtilLib;
 
 public class JavaVulkanCLRenderEngine {
-	private static String programtitle = "Java OpenCL Render Engine v0.1.0.0";
+	private static String programtitle = "Java OpenCL Render Engine v0.1.0.1";
 	private int screenwidth = 0, screenheight = 0, graphicswidth = 0, graphicsheight = 0, graphicslength = 0;
 	private boolean debug = System.getProperty("NDEBUG") == null;
     private String[] layers = {"VK_LAYER_LUNARG_standard_validation","VK_LAYER_KHRONOS_validation",};
@@ -232,7 +232,7 @@ public class JavaVulkanCLRenderEngine {
         LongBuffer pSurface = MemoryUtil.memAllocLong(1);
         int err = GLFWVulkan.glfwCreateWindowSurface(instance, window, null, pSurface);
         final long surface = pSurface.get(0);
-        if (err != VK11.VK_SUCCESS) {throw new AssertionError("GLFW vulkan failed to create surface: " + translateVulkanResult(err));}
+        if (err != VK13.VK_SUCCESS) {throw new AssertionError("GLFW vulkan failed to create surface: " + translateVulkanResult(err));}
         
         final ColorFormatAndSpace colorFormatAndSpace = getColorFormatAndSpace(physicalDevice, surface);
         final long commandPool = createCommandPool(device, queueFamilyIndex);
@@ -481,7 +481,7 @@ public class JavaVulkanCLRenderEngine {
     private VkInstance createInstance(PointerBuffer requiredExtensions) {
         VkApplicationInfo appInfo = VkApplicationInfo.calloc()
                 .sType$Default()
-                .apiVersion(VK11.VK_API_VERSION_1_1);
+                .apiVersion(VK13.VK_API_VERSION_1_3);
         PointerBuffer ppEnabledExtensionNames = MemoryUtil.memAllocPointer(requiredExtensions.remaining() + 1);
         ppEnabledExtensionNames.put(requiredExtensions);
         ByteBuffer VK_EXT_DEBUG_REPORT_EXTENSION = MemoryUtil.memUTF8(EXTDebugReport.VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
@@ -490,10 +490,10 @@ public class JavaVulkanCLRenderEngine {
         PointerBuffer ppEnabledLayerNames = debug ? allocateLayerBuffer(layers) : null;
         VkInstanceCreateInfo pCreateInfo = VkInstanceCreateInfo.calloc().sType$Default().pApplicationInfo(appInfo).ppEnabledExtensionNames(ppEnabledExtensionNames).ppEnabledLayerNames(ppEnabledLayerNames);
         PointerBuffer pInstance = MemoryUtil.memAllocPointer(1);
-        int err = VK11.vkCreateInstance(pCreateInfo, null, pInstance);
+        int err = VK13.vkCreateInstance(pCreateInfo, null, pInstance);
         long instance = pInstance.get(0);
         MemoryUtil.memFree(pInstance);
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to create VkInstance: " + translateVulkanResult(err));
         }
         VkInstance ret = new VkInstance(instance, pCreateInfo);
@@ -509,42 +509,42 @@ public class JavaVulkanCLRenderEngine {
 
     public String translateVulkanResult(int result) {
         switch (result) {
-        case VK11.VK_SUCCESS:
+        case VK13.VK_SUCCESS:
             return "Command successfully completed.";
-        case VK11.VK_NOT_READY:
+        case VK13.VK_NOT_READY:
             return "A fence or query has not yet completed.";
-        case VK11.VK_TIMEOUT:
+        case VK13.VK_TIMEOUT:
             return "A wait operation has not completed in the specified time.";
-        case VK11.VK_EVENT_SET:
+        case VK13.VK_EVENT_SET:
             return "An event is signaled.";
-        case VK11.VK_EVENT_RESET:
+        case VK13.VK_EVENT_RESET:
             return "An event is unsignaled.";
-        case VK11.VK_INCOMPLETE:
+        case VK13.VK_INCOMPLETE:
             return "A return array was too small for the result.";
         case KHRSwapchain.VK_SUBOPTIMAL_KHR:
             return "A swapchain no longer matches the surface properties exactly, but can still be used to present to the surface successfully.";
 
-        case VK11.VK_ERROR_OUT_OF_HOST_MEMORY:
+        case VK13.VK_ERROR_OUT_OF_HOST_MEMORY:
             return "A host memory allocation has failed.";
-        case VK11.VK_ERROR_OUT_OF_DEVICE_MEMORY:
+        case VK13.VK_ERROR_OUT_OF_DEVICE_MEMORY:
             return "A device memory allocation has failed.";
-        case VK11.VK_ERROR_INITIALIZATION_FAILED:
+        case VK13.VK_ERROR_INITIALIZATION_FAILED:
             return "Initialization of an object could not be completed for implementation-specific reasons.";
-        case VK11.VK_ERROR_DEVICE_LOST:
+        case VK13.VK_ERROR_DEVICE_LOST:
             return "The logical or physical device has been lost.";
-        case VK11.VK_ERROR_MEMORY_MAP_FAILED:
+        case VK13.VK_ERROR_MEMORY_MAP_FAILED:
             return "Mapping of a memory object has failed.";
-        case VK11.VK_ERROR_LAYER_NOT_PRESENT:
+        case VK13.VK_ERROR_LAYER_NOT_PRESENT:
             return "A requested layer is not present or could not be loaded.";
-        case VK11.VK_ERROR_EXTENSION_NOT_PRESENT:
+        case VK13.VK_ERROR_EXTENSION_NOT_PRESENT:
             return "A requested extension is not supported.";
-        case VK11.VK_ERROR_FEATURE_NOT_PRESENT:
+        case VK13.VK_ERROR_FEATURE_NOT_PRESENT:
             return "A requested feature is not supported.";
-        case VK11.VK_ERROR_INCOMPATIBLE_DRIVER:
+        case VK13.VK_ERROR_INCOMPATIBLE_DRIVER:
             return "The requested version of Vulkan is not supported by the driver or is otherwise incompatible for implementation-specific reasons.";
-        case VK11.VK_ERROR_TOO_MANY_OBJECTS:
+        case VK13.VK_ERROR_TOO_MANY_OBJECTS:
             return "Too many objects of the type have already been created.";
-        case VK11.VK_ERROR_FORMAT_NOT_SUPPORTED:
+        case VK13.VK_ERROR_FORMAT_NOT_SUPPORTED:
             return "A requested format is not supported on this device.";
         case KHRSurface.VK_ERROR_SURFACE_LOST_KHR:
             return "A surface is no longer available.";
@@ -574,7 +574,7 @@ public class JavaVulkanCLRenderEngine {
         long callbackHandle = pCallback.get(0);
         MemoryUtil.memFree(pCallback);
         dbgCreateInfo.free();
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to create VkInstance: " + translateVulkanResult(err));
         }
         return callbackHandle;
@@ -596,13 +596,13 @@ public class JavaVulkanCLRenderEngine {
     private final Set<String> getAvailableLayers() {
         final Set<String> res = new HashSet<>();
         final int[] ip = new int[1];
-        VK11.vkEnumerateInstanceLayerProperties(ip, null);
+        VK13.vkEnumerateInstanceLayerProperties(ip, null);
         final int count = ip[0];
 
         try (final MemoryStack stack = MemoryStack.stackPush()) {
             if (count > 0) {
                 final VkLayerProperties.Buffer instanceLayers = VkLayerProperties.malloc(count, stack);
-                VK11.vkEnumerateInstanceLayerProperties(ip, instanceLayers);
+                VK13.vkEnumerateInstanceLayerProperties(ip, instanceLayers);
                 for (int i = 0; i < count; i++) {
                     final String layerName = instanceLayers.get(i).layerNameString();
                     res.add(layerName);
@@ -621,16 +621,16 @@ public class JavaVulkanCLRenderEngine {
 
     private VkPhysicalDevice getFirstPhysicalDevice(VkInstance instance) {
         IntBuffer pPhysicalDeviceCount = MemoryUtil.memAllocInt(1);
-        int err = VK11.vkEnumeratePhysicalDevices(instance, pPhysicalDeviceCount, null);
-        if (err != VK11.VK_SUCCESS) {
+        int err = VK13.vkEnumeratePhysicalDevices(instance, pPhysicalDeviceCount, null);
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to get number of physical devices: " + translateVulkanResult(err));
         }
         PointerBuffer pPhysicalDevices = MemoryUtil.memAllocPointer(pPhysicalDeviceCount.get(0));
-        err = VK11.vkEnumeratePhysicalDevices(instance, pPhysicalDeviceCount, pPhysicalDevices);
+        err = VK13.vkEnumeratePhysicalDevices(instance, pPhysicalDeviceCount, pPhysicalDevices);
         long physicalDevice = pPhysicalDevices.get(0);
         MemoryUtil.memFree(pPhysicalDeviceCount);
         MemoryUtil.memFree(pPhysicalDevices);
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to get physical devices: " + translateVulkanResult(err));
         }
         return new VkPhysicalDevice(physicalDevice, instance);
@@ -638,14 +638,14 @@ public class JavaVulkanCLRenderEngine {
 
     private DeviceAndGraphicsQueueFamily createDeviceAndGetGraphicsQueueFamily(VkPhysicalDevice physicalDevice) {
         IntBuffer pQueueFamilyPropertyCount = MemoryUtil.memAllocInt(1);
-        VK11.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, pQueueFamilyPropertyCount, null);
+        VK13.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, pQueueFamilyPropertyCount, null);
         int queueCount = pQueueFamilyPropertyCount.get(0);
         VkQueueFamilyProperties.Buffer queueProps = VkQueueFamilyProperties.calloc(queueCount);
-        VK11.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, pQueueFamilyPropertyCount, queueProps);
+        VK13.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, pQueueFamilyPropertyCount, queueProps);
         MemoryUtil.memFree(pQueueFamilyPropertyCount);
         int graphicsQueueFamilyIndex;
         for (graphicsQueueFamilyIndex = 0; graphicsQueueFamilyIndex < queueCount; graphicsQueueFamilyIndex++) {
-            if ((queueProps.get(graphicsQueueFamilyIndex).queueFlags() & VK11.VK_QUEUE_GRAPHICS_BIT) != 0)
+            if ((queueProps.get(graphicsQueueFamilyIndex).queueFlags() & VK13.VK_QUEUE_GRAPHICS_BIT) != 0)
                 break;
         }
         queueProps.free();
@@ -661,15 +661,15 @@ public class JavaVulkanCLRenderEngine {
         VkDeviceCreateInfo deviceCreateInfo = VkDeviceCreateInfo.calloc().sType$Default().pQueueCreateInfos(queueCreateInfo).ppEnabledExtensionNames(extensions);
 
         PointerBuffer pDevice = MemoryUtil.memAllocPointer(1);
-        int err = VK11.vkCreateDevice(physicalDevice, deviceCreateInfo, null, pDevice);
+        int err = VK13.vkCreateDevice(physicalDevice, deviceCreateInfo, null, pDevice);
         long device = pDevice.get(0);
         MemoryUtil.memFree(pDevice);
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to create device: " + translateVulkanResult(err));
         }
 
         VkPhysicalDeviceMemoryProperties memoryProperties = VkPhysicalDeviceMemoryProperties.calloc();
-        VK11.vkGetPhysicalDeviceMemoryProperties(physicalDevice, memoryProperties);
+        VK13.vkGetPhysicalDeviceMemoryProperties(physicalDevice, memoryProperties);
 
         DeviceAndGraphicsQueueFamily ret = new DeviceAndGraphicsQueueFamily();
         ret.device = new VkDevice(device, physicalDevice, deviceCreateInfo);
@@ -690,27 +690,27 @@ public class JavaVulkanCLRenderEngine {
     
     private ColorFormatAndSpace getColorFormatAndSpace(VkPhysicalDevice physicalDevice, long surface) {
         IntBuffer pQueueFamilyPropertyCount = MemoryUtil.memAllocInt(1);
-        VK11.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, pQueueFamilyPropertyCount, null);
+        VK13.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, pQueueFamilyPropertyCount, null);
         int queueCount = pQueueFamilyPropertyCount.get(0);
         VkQueueFamilyProperties.Buffer queueProps = VkQueueFamilyProperties.calloc(queueCount);
-        VK11.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, pQueueFamilyPropertyCount, queueProps);
+        VK13.vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, pQueueFamilyPropertyCount, queueProps);
         MemoryUtil.memFree(pQueueFamilyPropertyCount);
         IntBuffer supportsPresent = MemoryUtil.memAllocInt(queueCount);
         for (int i = 0; i < queueCount; i++) {
             supportsPresent.position(i);
             int err = KHRSurface.vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, supportsPresent);
-            if (err != VK11.VK_SUCCESS) {
+            if (err != VK13.VK_SUCCESS) {
                 throw new AssertionError("Failed to physical device surface support: " + translateVulkanResult(err));
             }
         }
         int graphicsQueueNodeIndex = Integer.MAX_VALUE;
         int presentQueueNodeIndex = Integer.MAX_VALUE;
         for (int i = 0; i < queueCount; i++) {
-            if ((queueProps.get(i).queueFlags() & VK11.VK_QUEUE_GRAPHICS_BIT) != 0) {
+            if ((queueProps.get(i).queueFlags() & VK13.VK_QUEUE_GRAPHICS_BIT) != 0) {
                 if (graphicsQueueNodeIndex == Integer.MAX_VALUE) {
                     graphicsQueueNodeIndex = i;
                 }
-                if (supportsPresent.get(i) == VK11.VK_TRUE) {
+                if (supportsPresent.get(i) == VK13.VK_TRUE) {
                     graphicsQueueNodeIndex = i;
                     presentQueueNodeIndex = i;
                     break;
@@ -720,7 +720,7 @@ public class JavaVulkanCLRenderEngine {
         queueProps.free();
         if (presentQueueNodeIndex == Integer.MAX_VALUE) {
             for (int i = 0; i < queueCount; ++i) {
-                if (supportsPresent.get(i) == VK11.VK_TRUE) {
+                if (supportsPresent.get(i) == VK13.VK_TRUE) {
                     presentQueueNodeIndex = i;
                     break;
                 }
@@ -733,18 +733,18 @@ public class JavaVulkanCLRenderEngine {
         IntBuffer pFormatCount = MemoryUtil.memAllocInt(1);
         int err = KHRSurface.vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, pFormatCount, null);
         int formatCount = pFormatCount.get(0);
-        if (err != VK11.VK_SUCCESS) {throw new AssertionError("Failed to query number of physical device surface formats: " + translateVulkanResult(err));}
+        if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to query number of physical device surface formats: " + translateVulkanResult(err));}
 
         VkSurfaceFormatKHR.Buffer surfFormats = VkSurfaceFormatKHR.calloc(formatCount);
         err = KHRSurface.vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, pFormatCount, surfFormats);
         MemoryUtil.memFree(pFormatCount);
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to query physical device surface formats: " + translateVulkanResult(err));
         }
 
         int colorFormat;
-        if (formatCount == 1 && surfFormats.get(0).format() == VK11.VK_FORMAT_UNDEFINED) {
-            colorFormat = VK11.VK_FORMAT_B8G8R8A8_UNORM;
+        if (formatCount == 1 && surfFormats.get(0).format() == VK13.VK_FORMAT_UNDEFINED) {
+            colorFormat = VK13.VK_FORMAT_B8G8R8A8_UNORM;
         } else {
             colorFormat = surfFormats.get(0).format();
         }
@@ -761,13 +761,13 @@ public class JavaVulkanCLRenderEngine {
         VkCommandPoolCreateInfo cmdPoolInfo = VkCommandPoolCreateInfo.calloc()
                 .sType$Default()
                 .queueFamilyIndex(queueNodeIndex)
-                .flags(VK11.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+                .flags(VK13.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
         LongBuffer pCmdPool = MemoryUtil.memAllocLong(1);
-        int err = VK11.vkCreateCommandPool(device, cmdPoolInfo, null, pCmdPool);
+        int err = VK13.vkCreateCommandPool(device, cmdPoolInfo, null, pCmdPool);
         long commandPool = pCmdPool.get(0);
         cmdPoolInfo.free();
         MemoryUtil.memFree(pCmdPool);
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to create command pool: " + translateVulkanResult(err));
         }
         return commandPool;
@@ -775,7 +775,7 @@ public class JavaVulkanCLRenderEngine {
 
     private VkQueue createDeviceQueue(VkDevice device, int queueFamilyIndex) {
         PointerBuffer pQueue = MemoryUtil.memAllocPointer(1);
-        VK11.vkGetDeviceQueue(device, queueFamilyIndex, 0, pQueue);
+        VK13.vkGetDeviceQueue(device, queueFamilyIndex, 0, pQueue);
         long queue = pQueue.get(0);
         MemoryUtil.memFree(pQueue);
         return new VkQueue(queue, device);
@@ -785,32 +785,32 @@ public class JavaVulkanCLRenderEngine {
         VkCommandBufferAllocateInfo cmdBufAllocateInfo = VkCommandBufferAllocateInfo.calloc()
                 .sType$Default()
                 .commandPool(commandPool)
-                .level(VK11.VK_COMMAND_BUFFER_LEVEL_PRIMARY)
+                .level(VK13.VK_COMMAND_BUFFER_LEVEL_PRIMARY)
                 .commandBufferCount(1);
         PointerBuffer pCommandBuffer = MemoryUtil.memAllocPointer(1);
-        int err = VK11.vkAllocateCommandBuffers(device, cmdBufAllocateInfo, pCommandBuffer);
+        int err = VK13.vkAllocateCommandBuffers(device, cmdBufAllocateInfo, pCommandBuffer);
         cmdBufAllocateInfo.free();
         long commandBuffer = pCommandBuffer.get(0);
         MemoryUtil.memFree(pCommandBuffer);
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to allocate command buffer: " + translateVulkanResult(err));
         }
         return new VkCommandBuffer(commandBuffer, device);
     }
 
     private long createRenderPass(VkDevice device, int colorFormat) {
-        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(1).format(colorFormat).samples(VK11.VK_SAMPLE_COUNT_1_BIT).loadOp(VK11.VK_ATTACHMENT_LOAD_OP_CLEAR)
-                .storeOp(VK11.VK_ATTACHMENT_STORE_OP_STORE).stencilLoadOp(VK11.VK_ATTACHMENT_LOAD_OP_DONT_CARE).stencilStoreOp(VK11.VK_ATTACHMENT_STORE_OP_DONT_CARE)
-                .initialLayout(VK11.VK_IMAGE_LAYOUT_UNDEFINED).finalLayout(KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-        VkAttachmentReference.Buffer colorReference = VkAttachmentReference.calloc(1).attachment(0).layout(VK11.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1).pipelineBindPoint(VK11.VK_PIPELINE_BIND_POINT_GRAPHICS)
+        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(1).format(colorFormat).samples(VK13.VK_SAMPLE_COUNT_1_BIT).loadOp(VK13.VK_ATTACHMENT_LOAD_OP_CLEAR)
+                .storeOp(VK13.VK_ATTACHMENT_STORE_OP_STORE).stencilLoadOp(VK13.VK_ATTACHMENT_LOAD_OP_DONT_CARE).stencilStoreOp(VK13.VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                .initialLayout(VK13.VK_IMAGE_LAYOUT_UNDEFINED).finalLayout(KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        VkAttachmentReference.Buffer colorReference = VkAttachmentReference.calloc(1).attachment(0).layout(VK13.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1).pipelineBindPoint(VK13.VK_PIPELINE_BIND_POINT_GRAPHICS)
                 .colorAttachmentCount(colorReference.remaining()).pColorAttachments(colorReference);
-        VkSubpassDependency.Buffer dependency = VkSubpassDependency.calloc(1).srcSubpass(VK11.VK_SUBPASS_EXTERNAL).srcStageMask(VK11.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
-                .dstAccessMask(VK11.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT).dstStageMask(VK11.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT).dependencyFlags(VK11.VK_DEPENDENCY_BY_REGION_BIT);
+        VkSubpassDependency.Buffer dependency = VkSubpassDependency.calloc(1).srcSubpass(VK13.VK_SUBPASS_EXTERNAL).srcStageMask(VK13.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+                .dstAccessMask(VK13.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT).dstStageMask(VK13.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT).dependencyFlags(VK13.VK_DEPENDENCY_BY_REGION_BIT);
         VkRenderPassCreateInfo renderPassInfo = VkRenderPassCreateInfo.calloc().sType$Default().pAttachments(attachments).pSubpasses(subpass).pDependencies(dependency);
 
         LongBuffer pRenderPass = MemoryUtil.memAllocLong(1);
-        int err = VK11.vkCreateRenderPass(device, renderPassInfo, null, pRenderPass);
+        int err = VK13.vkCreateRenderPass(device, renderPassInfo, null, pRenderPass);
         long renderPass = pRenderPass.get(0);
         MemoryUtil.memFree(pRenderPass);
         dependency.free();
@@ -818,7 +818,7 @@ public class JavaVulkanCLRenderEngine {
         colorReference.free();
         subpass.free();
         attachments.free();
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to create clear render pass: " + translateVulkanResult(err));
         }
         return renderPass;
@@ -857,52 +857,52 @@ public class JavaVulkanCLRenderEngine {
         VkBufferCreateInfo bufInfo = VkBufferCreateInfo.calloc()
                 .sType$Default()
                 .size(vertexBuffer.remaining())
-                .usage(VK11.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+                .usage(VK13.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
         LongBuffer pBuffer = MemoryUtil.memAllocLong(1);
-        err = VK11.vkCreateBuffer(device, bufInfo, null, pBuffer);
+        err = VK13.vkCreateBuffer(device, bufInfo, null, pBuffer);
         long verticesBuf = pBuffer.get(0);
         MemoryUtil.memFree(pBuffer);
         bufInfo.free();
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to create vertex buffer: " + translateVulkanResult(err));
         }
 
-        VK11.vkGetBufferMemoryRequirements(device, verticesBuf, memReqs);
+        VK13.vkGetBufferMemoryRequirements(device, verticesBuf, memReqs);
         memAlloc.allocationSize(memReqs.size());
         IntBuffer memoryTypeIndex = MemoryUtil.memAllocInt(1);
-        getMemoryType(deviceMemoryProperties, memReqs.memoryTypeBits(), VK11.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memoryTypeIndex);
+        getMemoryType(deviceMemoryProperties, memReqs.memoryTypeBits(), VK13.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memoryTypeIndex);
         memAlloc.memoryTypeIndex(memoryTypeIndex.get(0));
         MemoryUtil.memFree(memoryTypeIndex);
         memReqs.free();
 
         LongBuffer pMemory = MemoryUtil.memAllocLong(1);
-        err = VK11.vkAllocateMemory(device, memAlloc, null, pMemory);
+        err = VK13.vkAllocateMemory(device, memAlloc, null, pMemory);
         long verticesMem = pMemory.get(0);
         MemoryUtil.memFree(pMemory);
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to allocate vertex memory: " + translateVulkanResult(err));
         }
 
         PointerBuffer pData = MemoryUtil.memAllocPointer(1);
-        err = VK11.vkMapMemory(device, verticesMem, 0, memAlloc.allocationSize(), 0, pData);
+        err = VK13.vkMapMemory(device, verticesMem, 0, memAlloc.allocationSize(), 0, pData);
         memAlloc.free();
         long data = pData.get(0);
         MemoryUtil.memFree(pData);
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to map vertex memory: " + translateVulkanResult(err));
         }
 
         MemoryUtil.memCopy(MemoryUtil.memAddress(vertexBuffer), data, vertexBuffer.remaining());
         MemoryUtil.memFree(vertexBuffer);
-        VK11.vkUnmapMemory(device, verticesMem);
-        err = VK11.vkBindBufferMemory(device, verticesBuf, verticesMem, 0);
-        if (err != VK11.VK_SUCCESS) {
+        VK13.vkUnmapMemory(device, verticesMem);
+        err = VK13.vkBindBufferMemory(device, verticesBuf, verticesMem, 0);
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to bind memory to vertex buffer: " + translateVulkanResult(err));
         }
 
-        VkVertexInputBindingDescription.Buffer bindingDescriptor = VkVertexInputBindingDescription.calloc(1).binding(0).stride(2 * 4).inputRate(VK11.VK_VERTEX_INPUT_RATE_VERTEX);
+        VkVertexInputBindingDescription.Buffer bindingDescriptor = VkVertexInputBindingDescription.calloc(1).binding(0).stride(2 * 4).inputRate(VK13.VK_VERTEX_INPUT_RATE_VERTEX);
         VkVertexInputAttributeDescription.Buffer attributeDescriptions = VkVertexInputAttributeDescription.calloc(1);
-        attributeDescriptions.get(0).binding(0).location(0).format(VK11.VK_FORMAT_R32G32_SFLOAT).offset(0);
+        attributeDescriptions.get(0).binding(0).location(0).format(VK13.VK_FORMAT_R32G32_SFLOAT).offset(0);
         VkPipelineVertexInputStateCreateInfo vi = VkPipelineVertexInputStateCreateInfo.calloc().sType$Default().pVertexBindingDescriptions(bindingDescriptor).pVertexAttributeDescriptions(attributeDescriptions);
 
         Vertices ret = new Vertices();
@@ -913,33 +913,33 @@ public class JavaVulkanCLRenderEngine {
 
     private long createPipeline(VkDevice device, long renderPass, VkPipelineVertexInputStateCreateInfo vi) {
         int err;
-        VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = VkPipelineInputAssemblyStateCreateInfo.calloc().sType$Default().topology(VK11.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-        VkPipelineRasterizationStateCreateInfo rasterizationState = VkPipelineRasterizationStateCreateInfo.calloc().sType$Default().polygonMode(VK11.VK_POLYGON_MODE_FILL)
-                .cullMode(VK11.VK_CULL_MODE_NONE).frontFace(VK11.VK_FRONT_FACE_COUNTER_CLOCKWISE).lineWidth(1.0f);
+        VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = VkPipelineInputAssemblyStateCreateInfo.calloc().sType$Default().topology(VK13.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        VkPipelineRasterizationStateCreateInfo rasterizationState = VkPipelineRasterizationStateCreateInfo.calloc().sType$Default().polygonMode(VK13.VK_POLYGON_MODE_FILL)
+                .cullMode(VK13.VK_CULL_MODE_NONE).frontFace(VK13.VK_FRONT_FACE_COUNTER_CLOCKWISE).lineWidth(1.0f);
         VkPipelineColorBlendAttachmentState.Buffer colorWriteMask = VkPipelineColorBlendAttachmentState.calloc(1).colorWriteMask(0xF);
         VkPipelineColorBlendStateCreateInfo colorBlendState = VkPipelineColorBlendStateCreateInfo.calloc().sType$Default().pAttachments(colorWriteMask);
         VkPipelineViewportStateCreateInfo viewportState = VkPipelineViewportStateCreateInfo.calloc().sType$Default().viewportCount(1).scissorCount(1);
 
         IntBuffer pDynamicStates = MemoryUtil.memAllocInt(2);
-        pDynamicStates.put(VK11.VK_DYNAMIC_STATE_VIEWPORT).put(VK11.VK_DYNAMIC_STATE_SCISSOR).flip();
+        pDynamicStates.put(VK13.VK_DYNAMIC_STATE_VIEWPORT).put(VK13.VK_DYNAMIC_STATE_SCISSOR).flip();
         VkPipelineDynamicStateCreateInfo dynamicState = VkPipelineDynamicStateCreateInfo.calloc().sType$Default().pDynamicStates(pDynamicStates);
-        VkPipelineDepthStencilStateCreateInfo depthStencilState = VkPipelineDepthStencilStateCreateInfo.calloc().sType$Default().depthCompareOp(VK11.VK_COMPARE_OP_ALWAYS);
-        depthStencilState.back().failOp(VK11.VK_STENCIL_OP_KEEP).passOp(VK11.VK_STENCIL_OP_KEEP).compareOp(VK11.VK_COMPARE_OP_ALWAYS);
+        VkPipelineDepthStencilStateCreateInfo depthStencilState = VkPipelineDepthStencilStateCreateInfo.calloc().sType$Default().depthCompareOp(VK13.VK_COMPARE_OP_ALWAYS);
+        depthStencilState.back().failOp(VK13.VK_STENCIL_OP_KEEP).passOp(VK13.VK_STENCIL_OP_KEEP).compareOp(VK13.VK_COMPARE_OP_ALWAYS);
         depthStencilState.front(depthStencilState.back());
 
-        VkPipelineMultisampleStateCreateInfo multisampleState = VkPipelineMultisampleStateCreateInfo.calloc().sType$Default().rasterizationSamples(VK11.VK_SAMPLE_COUNT_1_BIT);
+        VkPipelineMultisampleStateCreateInfo multisampleState = VkPipelineMultisampleStateCreateInfo.calloc().sType$Default().rasterizationSamples(VK13.VK_SAMPLE_COUNT_1_BIT);
         VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2);
-        shaderStages.get(0).set(loadShader(device, "res/vkshaders/triangle.vert", VK11.VK_SHADER_STAGE_VERTEX_BIT));
-        shaderStages.get(1).set(loadShader(device, "res/vkshaders/triangle.frag", VK11.VK_SHADER_STAGE_FRAGMENT_BIT));
+        shaderStages.get(0).set(loadShader(device, "res/vkshaders/triangle.vert", VK13.VK_SHADER_STAGE_VERTEX_BIT));
+        shaderStages.get(1).set(loadShader(device, "res/vkshaders/triangle.frag", VK13.VK_SHADER_STAGE_FRAGMENT_BIT));
 
         VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo = VkPipelineLayoutCreateInfo.calloc().sType$Default();
 
         LongBuffer pPipelineLayout = MemoryUtil.memAllocLong(1);
-        err = VK11.vkCreatePipelineLayout(device, pPipelineLayoutCreateInfo, null, pPipelineLayout);
+        err = VK13.vkCreatePipelineLayout(device, pPipelineLayoutCreateInfo, null, pPipelineLayout);
         long layout = pPipelineLayout.get(0);
         MemoryUtil.memFree(pPipelineLayout);
         pPipelineLayoutCreateInfo.free();
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to create pipeline layout: " + translateVulkanResult(err));
         }
 
@@ -948,7 +948,7 @@ public class JavaVulkanCLRenderEngine {
                 .pMultisampleState(multisampleState).pViewportState(viewportState).pDepthStencilState(depthStencilState).pStages(shaderStages).pDynamicState(dynamicState);
 
         LongBuffer pPipelines = MemoryUtil.memAllocLong(1);
-        err = VK11.vkCreateGraphicsPipelines(device, VK11.VK_NULL_HANDLE, pipelineCreateInfo, null, pPipelines);
+        err = VK13.vkCreateGraphicsPipelines(device, VK13.VK_NULL_HANDLE, pipelineCreateInfo, null, pPipelines);
         long pipeline = pPipelines.get(0);
         shaderStages.free();
         multisampleState.free();
@@ -960,7 +960,7 @@ public class JavaVulkanCLRenderEngine {
         colorWriteMask.free();
         rasterizationState.free();
         inputAssemblyState.free();
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to create pipeline: " + translateVulkanResult(err));
         }
         return pipeline;
@@ -973,10 +973,10 @@ public class JavaVulkanCLRenderEngine {
                 .sType$Default()
                 .pCode(shaderCode);
         LongBuffer pShaderModule = MemoryUtil.memAllocLong(1);
-        err = VK11.vkCreateShaderModule(device, moduleCreateInfo, null, pShaderModule);
+        err = VK13.vkCreateShaderModule(device, moduleCreateInfo, null, pShaderModule);
         long shaderModule = pShaderModule.get(0);
         MemoryUtil.memFree(pShaderModule);
-        if (err != VK11.VK_SUCCESS) {
+        if (err != VK13.VK_SUCCESS) {
             throw new AssertionError("Failed to create shader module: " + translateVulkanResult(err));
         }
         return shaderModule;
@@ -993,13 +993,13 @@ public class JavaVulkanCLRenderEngine {
     
     public ByteBuffer glslToSpirv(String classPath, int vulkanStage) {
     	byte[] sourceShader = ComputeLib.loadProgram(classPath, true);
-		ByteBuffer src = BufferUtils.createByteBuffer(1024);
+		ByteBuffer src = BufferUtils.createByteBuffer(sourceShader.length);
 		src.put(sourceShader).rewind();
         long compiler = Shaderc.shaderc_compiler_initialize();
         long options = Shaderc.shaderc_compile_options_initialize();
         ShadercIncludeResolve resolver;
         ShadercIncludeResultRelease releaser;
-        Shaderc.shaderc_compile_options_set_target_env(options, Shaderc.shaderc_target_env_vulkan, Shaderc.shaderc_env_version_vulkan_1_2);
+        Shaderc.shaderc_compile_options_set_target_env(options, Shaderc.shaderc_target_env_vulkan, Shaderc.shaderc_env_version_vulkan_1_3);
         Shaderc.shaderc_compile_options_set_target_spirv(options, Shaderc.shaderc_spirv_version_1_4);
         Shaderc.shaderc_compile_options_set_optimization_level(options, Shaderc.shaderc_optimization_level_performance);
         Shaderc.shaderc_compile_options_set_include_callbacks(options, resolver = new ShadercIncludeResolve() {
@@ -1008,7 +1008,7 @@ public class JavaVulkanCLRenderEngine {
                 String src = classPath.substring(0, classPath.lastIndexOf('/')) + "/" + MemoryUtil.memUTF8(requested_source);
                 byte[] srcShader = ComputeLib.loadProgram(src, true);
                 if (srcShader!=null) {
-	        		ByteBuffer srcbytes = BufferUtils.createByteBuffer(1024);
+	        		ByteBuffer srcbytes = BufferUtils.createByteBuffer(srcShader.length);
 	        		srcbytes.put(srcShader).rewind();
 	                res.content(srcbytes);
 	                res.source_name(MemoryUtil.memUTF8(src));
@@ -1046,9 +1046,9 @@ public class JavaVulkanCLRenderEngine {
     
     private int vulkanStageToShadercKind(int stage) {
         switch (stage) {
-        case VK11.VK_SHADER_STAGE_VERTEX_BIT:
+        case VK13.VK_SHADER_STAGE_VERTEX_BIT:
             return Shaderc.shaderc_vertex_shader;
-        case VK11.VK_SHADER_STAGE_FRAGMENT_BIT:
+        case VK13.VK_SHADER_STAGE_FRAGMENT_BIT:
             return Shaderc.shaderc_fragment_shader;
         case NVRayTracing.VK_SHADER_STAGE_RAYGEN_BIT_NV:
             return Shaderc.shaderc_raygen_shader;
@@ -1060,7 +1060,7 @@ public class JavaVulkanCLRenderEngine {
             return Shaderc.shaderc_anyhit_shader;
         case NVRayTracing.VK_SHADER_STAGE_INTERSECTION_BIT_NV:
             return Shaderc.shaderc_intersection_shader;
-        case VK11.VK_SHADER_STAGE_COMPUTE_BIT:
+        case VK13.VK_SHADER_STAGE_COMPUTE_BIT:
             return Shaderc.shaderc_compute_shader;
         default:
             throw new IllegalArgumentException("Stage: " + stage);
