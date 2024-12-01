@@ -16,7 +16,6 @@ import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWCursorPosCallbackI;
 import org.lwjgl.glfw.GLFWErrorCallback;
-import org.lwjgl.glfw.GLFWFramebufferSizeCallback;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.glfw.GLFWImage.Buffer;
 import org.lwjgl.glfw.GLFWKeyCallbackI;
@@ -108,7 +107,7 @@ import fi.jkauppa.javarenderengine.UtilLib;
 import fi.jkauppa.javavulkanclrenderengine.ComputeLib.Device;
 
 public class JavaVulkanCLRenderEngine {
-	private static String programtitle = "Java OpenCL Render Engine v0.1.0.2";
+	private static String programtitle = "Java OpenCL Render Engine v0.1.0.3";
 	private int screenwidth = 0, screenheight = 0, graphicswidth = 0, graphicsheight = 0, graphicslength = 0;
 	private boolean debug = System.getProperty("NDEBUG") == null;
     private String[] layers = {"VK_LAYER_LUNARG_standard_validation","VK_LAYER_KHRONOS_validation",};
@@ -148,7 +147,6 @@ public class JavaVulkanCLRenderEngine {
 	private float frametimeavg = 0.0f;
 	private ComputeLib computelib = null;
 	private int selecteddevice = 0;
-	@SuppressWarnings("unused")
 	private boolean isfullscreen = false;
 	private boolean vkinterop = true;
 	private long opencldevice = NULL, openclqueue = NULL, openclprogram = NULL;
@@ -202,7 +200,6 @@ public class JavaVulkanCLRenderEngine {
 	private MousePositionProcessor mouseposprocessor = new MousePositionProcessor();
 	private MouseButtonProcessor mousebuttonprocessor = new MouseButtonProcessor();
 	private MouseWheelProcessor mousewheelprocessor = new MouseWheelProcessor();
-    private ResizeCallback framebufferSizeCallback = new ResizeCallback();
 
 	public JavaVulkanCLRenderEngine(int vselecteddevice, int vfullscreen, int vvkinterop) {
 		GLFWErrorCallback.createPrint(System.err).set();
@@ -213,10 +210,8 @@ public class JavaVulkanCLRenderEngine {
 		this.monitor = GLFW.glfwGetPrimaryMonitor();
 		this.videomode = GLFW.glfwGetVideoMode(this.monitor);
 		this.screenwidth = 1280; this.screenheight = 720;
-		long fullscreenmonitor = NULL;
 		if (vfullscreen!=0) {
 			this.isfullscreen = true;
-			fullscreenmonitor = monitor;
 			this.screenwidth = videomode.width();
 			this.screenheight = videomode.height();
 		}
@@ -230,7 +225,12 @@ public class JavaVulkanCLRenderEngine {
 		GLFW.glfwDefaultWindowHints();
 		GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_NO_API);
 		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
-		if ((window=GLFW.glfwCreateWindow(screenwidth, screenheight, programtitle, fullscreenmonitor, NULL))==NULL) {System.out.println("GLFW create window failed."); System.exit(2);}
+		GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_FALSE);
+		if ((window=GLFW.glfwCreateWindow(screenwidth, screenheight, programtitle, NULL, NULL))==NULL) {System.out.println("GLFW create window failed."); System.exit(2);}
+		if (this.isfullscreen) {
+			GLFW.glfwSetWindowAttrib(window, GLFW.GLFW_DECORATED, GLFW.GLFW_FALSE);
+			GLFW.glfwSetWindowMonitor(window, NULL, 0, 0, screenwidth, screenheight, GLFW.GLFW_DONT_CARE);
+		}
 		GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
 		GLFW.glfwSetKeyCallback(window, keyprocessor);
 		GLFW.glfwSetCursorPosCallback(window, mouseposprocessor);
@@ -268,7 +268,6 @@ public class JavaVulkanCLRenderEngine {
         vertices = createVertices(memoryProperties, device);
         pipeline = createPipeline(device, renderPass, vertices.createInfo);
         swapchainRecreator = new SwapchainRecreator();
-        GLFW.glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
         GLFW.glfwShowWindow(window);
         
 		this.selecteddevice = vselecteddevice;
@@ -359,12 +358,9 @@ public class JavaVulkanCLRenderEngine {
 		this.litgraphicswidth = this.triangleslistlen[0] * 32;
 		this.litgraphicsheight = 32*6;
 
-		if (this.vkinterop) {
-			//this.graphicsbufferptr = computelib.createSharedVKBuffer(opencldevice, buf);
-		} else {
-			this.graphicsbuffer = new float[graphicslength*4];
-			this.graphicsbufferptr = computelib.createBuffer(opencldevice, graphicslength*4);
-		}
+		this.graphicsbuffer = new float[graphicslength*4];
+		this.graphicsbufferptr = computelib.createBuffer(opencldevice, graphicslength*4);
+		
 		this.graphicszbufferptr = computelib.createBuffer(opencldevice, graphicslength);
 		this.graphicszbuffer = new float[graphicslength];
 		this.graphicshbufferptr = computelib.createBuffer(opencldevice, 1);
@@ -438,29 +434,21 @@ public class JavaVulkanCLRenderEngine {
 			tick(lasttimedeltaseconds);
 			render();
 
-            if (swapchainRecreator.mustRecreate)
-                swapchainRecreator.recreate();
-
+            if (swapchainRecreator.mustRecreate) {swapchainRecreator.recreate();}
             err = VK13.vkCreateSemaphore(device, semaphoreCreateInfo, null, pImageAcquiredSemaphore);
             if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to create image acquired semaphore: " + translateVulkanResult(err));}
-
             err = VK13.vkCreateSemaphore(device, semaphoreCreateInfo, null, pRenderCompleteSemaphore);
             if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to create render complete semaphore: " + translateVulkanResult(err));}
-
             err = KHRSwapchain.vkAcquireNextImageKHR(device, swapchain.swapchainHandle, UINT64_MAX, pImageAcquiredSemaphore.get(0), VK13.VK_NULL_HANDLE, pImageIndex);
             currentBuffer = pImageIndex.get(0);
             if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to acquire next swapchain image: " + translateVulkanResult(err));}
-
             pCommandBuffers.put(0, renderCommandBuffers[currentBuffer]);
-
             err = VK13.vkQueueSubmit(queue, submitInfo, VK13.VK_NULL_HANDLE);
             if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to submit render queue: " + translateVulkanResult(err));}
-
             pSwapchains.put(0, swapchain.swapchainHandle);
             err = KHRSwapchain.vkQueuePresentKHR(queue, presentInfo);
             if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to present the swapchain image: " + translateVulkanResult(err));}
             VK13.vkQueueWaitIdle(queue);
-
             VK13.vkDestroySemaphore(device, pImageAcquiredSemaphore.get(0), null);
             VK13.vkDestroySemaphore(device, pRenderCompleteSemaphore.get(0), null);
 		}
@@ -1452,16 +1440,6 @@ public class JavaVulkanCLRenderEngine {
 		return trianglelist;
 	}
 
-    private class ResizeCallback extends GLFWFramebufferSizeCallback {
-        public void invoke(long window, int width, int height) {
-            if (width <= 0 || height <= 0)
-                return;
-            screenwidth = width;
-            screenheight = height;
-            swapchainRecreator.mustRecreate = true;
-        }
-    };
-	
 	private class KeyProcessor implements GLFWKeyCallbackI {
 		@Override public void invoke(long window, int key, int scancode, int action, int mods) {
 			if (action==GLFW.GLFW_PRESS) {
