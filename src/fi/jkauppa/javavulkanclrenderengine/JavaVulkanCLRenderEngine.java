@@ -16,6 +16,7 @@ import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWCursorPosCallbackI;
 import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.glfw.GLFWFramebufferSizeCallback;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.glfw.GLFWImage.Buffer;
 import org.lwjgl.glfw.GLFWKeyCallbackI;
@@ -47,15 +48,20 @@ import org.lwjgl.vulkan.VkApplicationInfo;
 import org.lwjgl.vulkan.VkAttachmentDescription;
 import org.lwjgl.vulkan.VkAttachmentReference;
 import org.lwjgl.vulkan.VkBufferCreateInfo;
+import org.lwjgl.vulkan.VkClearValue;
 import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkCommandBufferAllocateInfo;
+import org.lwjgl.vulkan.VkCommandBufferBeginInfo;
 import org.lwjgl.vulkan.VkCommandPoolCreateInfo;
 import org.lwjgl.vulkan.VkDebugReportCallbackCreateInfoEXT;
 import org.lwjgl.vulkan.VkDebugReportCallbackEXT;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkDeviceCreateInfo;
 import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
+import org.lwjgl.vulkan.VkExtent2D;
+import org.lwjgl.vulkan.VkFramebufferCreateInfo;
 import org.lwjgl.vulkan.VkGraphicsPipelineCreateInfo;
+import org.lwjgl.vulkan.VkImageViewCreateInfo;
 import org.lwjgl.vulkan.VkInstance;
 import org.lwjgl.vulkan.VkInstanceCreateInfo;
 import org.lwjgl.vulkan.VkLayerProperties;
@@ -74,21 +80,23 @@ import org.lwjgl.vulkan.VkPipelineRasterizationStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineShaderStageCreateInfo;
 import org.lwjgl.vulkan.VkPipelineVertexInputStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineViewportStateCreateInfo;
+import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkQueue;
 import org.lwjgl.vulkan.VkQueueFamilyProperties;
+import org.lwjgl.vulkan.VkRect2D;
+import org.lwjgl.vulkan.VkRenderPassBeginInfo;
 import org.lwjgl.vulkan.VkRenderPassCreateInfo;
+import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
+import org.lwjgl.vulkan.VkSubmitInfo;
 import org.lwjgl.vulkan.VkSubpassDependency;
 import org.lwjgl.vulkan.VkSubpassDescription;
+import org.lwjgl.vulkan.VkSurfaceCapabilitiesKHR;
 import org.lwjgl.vulkan.VkSurfaceFormatKHR;
+import org.lwjgl.vulkan.VkSwapchainCreateInfoKHR;
 import org.lwjgl.vulkan.VkVertexInputAttributeDescription;
 import org.lwjgl.vulkan.VkVertexInputBindingDescription;
-
-//import static org.lwjgl.vulkan.EXTDebugReport.*;
-//import static org.lwjgl.vulkan.KHRSwapchain.*;
-//import static org.lwjgl.vulkan.KHRSurface.*;
-//import static org.lwjgl.vulkan.VK13.*;
-//import static org.lwjgl.glfw.GLFWVulkan.*;
+import org.lwjgl.vulkan.VkViewport;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
 
@@ -96,21 +104,44 @@ import fi.jkauppa.javarenderengine.ModelLib;
 import fi.jkauppa.javarenderengine.ModelLib.Entity;
 import fi.jkauppa.javarenderengine.ModelLib.Sphere;
 import fi.jkauppa.javarenderengine.ModelLib.Triangle;
-import fi.jkauppa.javavulkanclrenderengine.ComputeLib;
-import fi.jkauppa.javavulkanclrenderengine.ComputeLib.Device;
 import fi.jkauppa.javarenderengine.UtilLib;
+import fi.jkauppa.javavulkanclrenderengine.ComputeLib.Device;
 
 public class JavaVulkanCLRenderEngine {
-	private static String programtitle = "Java OpenCL Render Engine v0.1.0.1";
+	private static String programtitle = "Java OpenCL Render Engine v0.1.0.2";
 	private int screenwidth = 0, screenheight = 0, graphicswidth = 0, graphicsheight = 0, graphicslength = 0;
 	private boolean debug = System.getProperty("NDEBUG") == null;
     private String[] layers = {"VK_LAYER_LUNARG_standard_validation","VK_LAYER_KHRONOS_validation",};
-	@SuppressWarnings("unused")
+    @SuppressWarnings("unused")
 	private int litgraphicswidth = 0, litgraphicsheight = 0;
 	private float graphicshfov = 70.0f, graphicsvfov = 39.375f;
 	private long window = NULL;
 	@SuppressWarnings("unused")
 	private Callback debugProc = null;
+	private final int VK_FLAGS_NONE = 0;	
+    private final long UINT64_MAX = 0xFFFFFFFFFFFFFFFFL;
+    private Swapchain swapchain;
+    private long[] framebuffers;
+    private int width, height;
+    private final VkPhysicalDevice physicalDevice;
+    private final VkDevice device;
+    private final VkQueue queue;
+    private final long surface;
+    private final long renderCommandPool;
+    private final long renderPass;
+    private final VkCommandBuffer setupCommandBuffer;
+    private final ColorFormatAndSpace colorFormatAndSpace;
+    private VkCommandBuffer[] renderCommandBuffers;
+    private final long debugCallbackHandle;
+    private final DeviceAndGraphicsQueueFamily deviceAndGraphicsQueueFamily;
+    private final long pipeline;
+    private final Vertices vertices;
+    private final SwapchainRecreator swapchainRecreator;
+    private final long commandPool;
+    private int queueFamilyIndex;
+    private final VkPhysicalDeviceMemoryProperties memoryProperties;
+    private final VkInstance instance;
+    private final VkDebugReportCallbackEXT debugCallback;
 	private int soundbuf = 0;
 	private int sourcebuf = 0;
 	private float frametime = 0.0f;
@@ -132,6 +163,7 @@ public class JavaVulkanCLRenderEngine {
 	private long triangleslitptr = NULL;
 	private long litptr = NULL;
 	private long norptr = NULL;
+	@SuppressWarnings("unused")
 	private float[] graphicsbuffer = null;
 	@SuppressWarnings("unused")
 	private float[] graphicszbuffer = null;
@@ -170,6 +202,7 @@ public class JavaVulkanCLRenderEngine {
 	private MousePositionProcessor mouseposprocessor = new MousePositionProcessor();
 	private MouseButtonProcessor mousebuttonprocessor = new MouseButtonProcessor();
 	private MouseWheelProcessor mousewheelprocessor = new MouseWheelProcessor();
+    private ResizeCallback framebufferSizeCallback = new ResizeCallback();
 
 	public JavaVulkanCLRenderEngine(int vselecteddevice, int vfullscreen, int vvkinterop) {
 		GLFWErrorCallback.createPrint(System.err).set();
@@ -195,53 +228,48 @@ public class JavaVulkanCLRenderEngine {
 		this.graphicshfov = (float)(Math.toDegrees(2.0f*Math.atan((((double)this.graphicswidth)/((double)this.graphicsheight))*Math.tan(Math.toRadians((double)(this.graphicsvfov/2.0f))))));
 		this.graphicslength = this.graphicswidth*this.graphicsheight;
 		GLFW.glfwDefaultWindowHints();
-		//GLFW.glfwWindowHint(GLFW.GLFW_RED_BITS, videomode.redBits());
-		//GLFW.glfwWindowHint(GLFW.GLFW_GREEN_BITS, videomode.greenBits());
-		//GLFW.glfwWindowHint(GLFW.GLFW_BLUE_BITS, videomode.blueBits());
 		GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_NO_API);
 		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
-		GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_FALSE);
 		if ((window=GLFW.glfwCreateWindow(screenwidth, screenheight, programtitle, fullscreenmonitor, NULL))==NULL) {System.out.println("GLFW create window failed."); System.exit(2);}
 		GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
 		GLFW.glfwSetKeyCallback(window, keyprocessor);
 		GLFW.glfwSetCursorPosCallback(window, mouseposprocessor);
 		GLFW.glfwSetMouseButtonCallback(window, mousebuttonprocessor);
 		GLFW.glfwSetScrollCallback(window, mousewheelprocessor);
-		//GLFW.glfwMakeContextCurrent(window);
-		//GLFW.glfwSwapInterval(1);
-		GLFW.glfwShowWindow(window);
-		//GLFW.glfwSwapBuffers(window);
 		GLFW.glfwGetCursorPos(window, mousex, mousey);
 		lastmousex = mousex[0]; lastmousey = mousey[0];
 		BufferedImage iconimage = UtilLib.loadImage("res/images/icon.png", true);
 		this.setIcon(iconimage);
 		
-		final VkInstance instance = createInstance(requiredExtensions);
-        final VkDebugReportCallbackEXT debugCallback = new VkDebugReportCallbackEXT() {
+		instance = createInstance(requiredExtensions);
+        debugCallback = new VkDebugReportCallbackEXT() {
             public int invoke(int flags, int objectType, long object, long location, int messageCode, long pLayerPrefix, long pMessage, long pUserData) {
                 System.err.println("ERROR OCCURED: " + VkDebugReportCallbackEXT.getString(pMessage));
                 return 0;
             }
         };
-		final long debugCallbackHandle = setupDebugging(instance, EXTDebugReport.VK_DEBUG_REPORT_ERROR_BIT_EXT | EXTDebugReport.VK_DEBUG_REPORT_WARNING_BIT_EXT, debugCallback);
-        final VkPhysicalDevice physicalDevice = getFirstPhysicalDevice(instance);
-        final DeviceAndGraphicsQueueFamily deviceAndGraphicsQueueFamily = createDeviceAndGetGraphicsQueueFamily(physicalDevice);
-        final VkDevice device = deviceAndGraphicsQueueFamily.device;
-        int queueFamilyIndex = deviceAndGraphicsQueueFamily.queueFamilyIndex;
-        final VkPhysicalDeviceMemoryProperties memoryProperties = deviceAndGraphicsQueueFamily.memoryProperties;
+		debugCallbackHandle = setupDebugging(instance, EXTDebugReport.VK_DEBUG_REPORT_ERROR_BIT_EXT | EXTDebugReport.VK_DEBUG_REPORT_WARNING_BIT_EXT, debugCallback);
+        physicalDevice = getFirstPhysicalDevice(instance);
+        deviceAndGraphicsQueueFamily = createDeviceAndGetGraphicsQueueFamily(physicalDevice);
+        device = deviceAndGraphicsQueueFamily.device;
+        queueFamilyIndex = deviceAndGraphicsQueueFamily.queueFamilyIndex;
+        memoryProperties = deviceAndGraphicsQueueFamily.memoryProperties;
         LongBuffer pSurface = MemoryUtil.memAllocLong(1);
         int err = GLFWVulkan.glfwCreateWindowSurface(instance, window, null, pSurface);
-        final long surface = pSurface.get(0);
+        surface = pSurface.get(0);
         if (err != VK13.VK_SUCCESS) {throw new AssertionError("GLFW vulkan failed to create surface: " + translateVulkanResult(err));}
         
-        final ColorFormatAndSpace colorFormatAndSpace = getColorFormatAndSpace(physicalDevice, surface);
-        final long commandPool = createCommandPool(device, queueFamilyIndex);
-        final VkCommandBuffer setupCommandBuffer = createCommandBuffer(device, commandPool);
-        final VkQueue queue = createDeviceQueue(device, queueFamilyIndex);
-        final long renderPass = createRenderPass(device, colorFormatAndSpace.colorFormat);
-        final long renderCommandPool = createCommandPool(device, queueFamilyIndex);
-        final Vertices vertices = createVertices(memoryProperties, device);
-        final long pipeline = createPipeline(device, renderPass, vertices.createInfo);
+        colorFormatAndSpace = getColorFormatAndSpace(physicalDevice, surface);
+        commandPool = createCommandPool(device, queueFamilyIndex);
+        setupCommandBuffer = createCommandBuffer(device, commandPool);
+        queue = createDeviceQueue(device, queueFamilyIndex);
+        renderPass = createRenderPass(device, colorFormatAndSpace.colorFormat);
+        renderCommandPool = createCommandPool(device, queueFamilyIndex);
+        vertices = createVertices(memoryProperties, device);
+        pipeline = createPipeline(device, renderPass, vertices.createInfo);
+        swapchainRecreator = new SwapchainRecreator();
+        GLFW.glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+        GLFW.glfwShowWindow(window);
         
 		this.selecteddevice = vselecteddevice;
 		this.computelib = new ComputeLib();
@@ -385,18 +413,68 @@ public class JavaVulkanCLRenderEngine {
 	}
 
 	public void run() {
-		while(!GLFW.glfwWindowShouldClose(window)) {
+        IntBuffer pImageIndex = MemoryUtil.memAllocInt(1);
+        int currentBuffer = 0;
+        PointerBuffer pCommandBuffers = MemoryUtil.memAllocPointer(1);
+        LongBuffer pSwapchains = MemoryUtil.memAllocLong(1);
+        LongBuffer pImageAcquiredSemaphore = MemoryUtil.memAllocLong(1);
+        LongBuffer pRenderCompleteSemaphore = MemoryUtil.memAllocLong(1);
+
+        VkSemaphoreCreateInfo semaphoreCreateInfo = VkSemaphoreCreateInfo.calloc()
+                .sType$Default();
+        IntBuffer pWaitDstStageMask = MemoryUtil.memAllocInt(1);
+        pWaitDstStageMask.put(0, VK13.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+        VkSubmitInfo submitInfo = VkSubmitInfo.calloc().sType$Default().waitSemaphoreCount(pImageAcquiredSemaphore.remaining()).pWaitSemaphores(pImageAcquiredSemaphore)
+                .pWaitDstStageMask(pWaitDstStageMask).pCommandBuffers(pCommandBuffers).pSignalSemaphores(pRenderCompleteSemaphore);
+        VkPresentInfoKHR presentInfo = VkPresentInfoKHR.calloc().sType$Default().pWaitSemaphores(pRenderCompleteSemaphore).swapchainCount(pSwapchains.remaining())
+                .pSwapchains(pSwapchains).pImageIndices(pImageIndex);
+        
+        int err = -1;
+        while(!GLFW.glfwWindowShouldClose(window)) {
+			GLFW.glfwPollEvents();
 			long nanonewtimetick = System.nanoTime();
 			lasttimedeltaseconds = (nanonewtimetick - nanolasttimetick)/1000000000.0f;
 			nanolasttimetick = nanonewtimetick;
 			tick(lasttimedeltaseconds);
-			if (this.vkinterop) {computelib.acquireSharedBuffer(openclqueue, graphicsbufferptr);}
 			render();
-			if (this.vkinterop) {computelib.releaseSharedBuffer(openclqueue, graphicsbufferptr);}
-			if (!this.vkinterop) {}
-			//GLFW.glfwSwapBuffers(window);
-			GLFW.glfwPollEvents();
+
+            if (swapchainRecreator.mustRecreate)
+                swapchainRecreator.recreate();
+
+            err = VK13.vkCreateSemaphore(device, semaphoreCreateInfo, null, pImageAcquiredSemaphore);
+            if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to create image acquired semaphore: " + translateVulkanResult(err));}
+
+            err = VK13.vkCreateSemaphore(device, semaphoreCreateInfo, null, pRenderCompleteSemaphore);
+            if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to create render complete semaphore: " + translateVulkanResult(err));}
+
+            err = KHRSwapchain.vkAcquireNextImageKHR(device, swapchain.swapchainHandle, UINT64_MAX, pImageAcquiredSemaphore.get(0), VK13.VK_NULL_HANDLE, pImageIndex);
+            currentBuffer = pImageIndex.get(0);
+            if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to acquire next swapchain image: " + translateVulkanResult(err));}
+
+            pCommandBuffers.put(0, renderCommandBuffers[currentBuffer]);
+
+            err = VK13.vkQueueSubmit(queue, submitInfo, VK13.VK_NULL_HANDLE);
+            if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to submit render queue: " + translateVulkanResult(err));}
+
+            pSwapchains.put(0, swapchain.swapchainHandle);
+            err = KHRSwapchain.vkQueuePresentKHR(queue, presentInfo);
+            if (err != VK13.VK_SUCCESS) {throw new AssertionError("Failed to present the swapchain image: " + translateVulkanResult(err));}
+            VK13.vkQueueWaitIdle(queue);
+
+            VK13.vkDestroySemaphore(device, pImageAcquiredSemaphore.get(0), null);
+            VK13.vkDestroySemaphore(device, pRenderCompleteSemaphore.get(0), null);
 		}
+
+        presentInfo.free();
+        MemoryUtil.memFree(pWaitDstStageMask);
+        submitInfo.free();
+        MemoryUtil.memFree(pImageAcquiredSemaphore);
+        MemoryUtil.memFree(pRenderCompleteSemaphore);
+        semaphoreCreateInfo.free();
+        MemoryUtil.memFree(pSwapchains);
+        MemoryUtil.memFree(pCommandBuffers);
+
+        EXTDebugReport.vkDestroyDebugReportCallbackEXT(instance, debugCallbackHandle, null);
 
 		Callbacks.glfwFreeCallbacks(window);
 		GLFW.glfwDestroyWindow(window);
@@ -969,9 +1047,7 @@ public class JavaVulkanCLRenderEngine {
     private long loadShader(String classPath, VkDevice device, int stage) {
         ByteBuffer shaderCode = glslToSpirv(classPath, stage);
         int err;
-        VkShaderModuleCreateInfo moduleCreateInfo = VkShaderModuleCreateInfo.calloc()
-                .sType$Default()
-                .pCode(shaderCode);
+        VkShaderModuleCreateInfo moduleCreateInfo = VkShaderModuleCreateInfo.calloc().sType$Default().pCode(shaderCode);
         LongBuffer pShaderModule = MemoryUtil.memAllocLong(1);
         err = VK13.vkCreateShaderModule(device, moduleCreateInfo, null, pShaderModule);
         long shaderModule = pShaderModule.get(0);
@@ -1066,6 +1142,236 @@ public class JavaVulkanCLRenderEngine {
             throw new IllegalArgumentException("Stage: " + stage);
         }
     }
+
+    private final class SwapchainRecreator {
+        boolean mustRecreate = true;
+        void recreate() {
+            VkCommandBufferBeginInfo cmdBufInfo = VkCommandBufferBeginInfo.calloc()
+                    .sType$Default();
+            int err = VK13.vkBeginCommandBuffer(setupCommandBuffer, cmdBufInfo);
+            cmdBufInfo.free();
+            if (err != VK13.VK_SUCCESS) {
+                throw new AssertionError("Failed to begin setup command buffer: " + translateVulkanResult(err));
+            }
+            long oldChain = swapchain != null ? swapchain.swapchainHandle : VK13.VK_NULL_HANDLE;
+            swapchain = createSwapChain(device, physicalDevice, surface, oldChain, setupCommandBuffer,
+                    width, height, colorFormatAndSpace.colorFormat, colorFormatAndSpace.colorSpace);
+            err = VK13.vkEndCommandBuffer(setupCommandBuffer);
+            if (err != VK13.VK_SUCCESS) {
+                throw new AssertionError("Failed to end setup command buffer: " + translateVulkanResult(err));
+            }
+            submitCommandBuffer(queue, setupCommandBuffer);
+            VK13.vkQueueWaitIdle(queue);
+
+            if (framebuffers != null) {
+                for (int i = 0; i < framebuffers.length; i++)
+                    VK13.vkDestroyFramebuffer(device, framebuffers[i], null);
+            }
+            framebuffers = createFramebuffers(device, swapchain, renderPass, width, height);
+            if (renderCommandBuffers != null) {
+            	VK13.vkResetCommandPool(device, renderCommandPool, VK_FLAGS_NONE);
+            }
+            renderCommandBuffers = createRenderCommandBuffers(device, renderCommandPool, framebuffers, renderPass, width, height, pipeline, vertices.verticesBuf);
+
+            mustRecreate = false;
+        }
+    }
+    
+    private class Swapchain {
+        long swapchainHandle;
+        long[] images;
+        long[] imageViews;
+    }
+
+    private Swapchain createSwapChain(VkDevice device, VkPhysicalDevice physicalDevice, long surface, long oldSwapChain, VkCommandBuffer commandBuffer, int newWidth, int newHeight, int colorFormat, int colorSpace) {
+        int err;
+        VkSurfaceCapabilitiesKHR surfCaps = VkSurfaceCapabilitiesKHR.calloc();
+        err = KHRSurface.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, surfCaps);
+        if (err != VK13.VK_SUCCESS) {
+            throw new AssertionError("Failed to get physical device surface capabilities: " + translateVulkanResult(err));
+        }
+
+        int desiredNumberOfSwapchainImages = surfCaps.minImageCount();
+        if ((surfCaps.maxImageCount() > 0) && (desiredNumberOfSwapchainImages > surfCaps.maxImageCount())) {
+            desiredNumberOfSwapchainImages = surfCaps.maxImageCount();
+        }
+
+        VkExtent2D currentExtent = surfCaps.currentExtent();
+        int currentWidth = currentExtent.width();
+        int currentHeight = currentExtent.height();
+        if (currentWidth != -1 && currentHeight != -1) {
+            width = currentWidth;
+            height = currentHeight;
+        } else {
+            width = newWidth;
+            height = newHeight;
+        }
+
+        int preTransform;
+        if ((surfCaps.supportedTransforms() & KHRSurface.VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) != 0) {
+            preTransform = KHRSurface.VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+        } else {
+            preTransform = surfCaps.currentTransform();
+        }
+        surfCaps.free();
+
+        VkSwapchainCreateInfoKHR swapchainCI = VkSwapchainCreateInfoKHR.calloc().sType$Default().surface(surface).minImageCount(desiredNumberOfSwapchainImages)
+                .imageFormat(colorFormat).imageColorSpace(colorSpace).imageUsage(VK13.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT).preTransform(preTransform)
+                .imageArrayLayers(1).imageSharingMode(VK13.VK_SHARING_MODE_EXCLUSIVE).presentMode(KHRSurface.VK_PRESENT_MODE_FIFO_KHR)
+                .oldSwapchain(oldSwapChain).clipped(true).compositeAlpha(KHRSurface.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+        swapchainCI.imageExtent().width(width).height(height);
+        LongBuffer pSwapChain = MemoryUtil.memAllocLong(1);
+        err = KHRSwapchain.vkCreateSwapchainKHR(device, swapchainCI, null, pSwapChain);
+        swapchainCI.free();
+        long swapChain = pSwapChain.get(0);
+        MemoryUtil.memFree(pSwapChain);
+        if (err != VK13.VK_SUCCESS) {
+            throw new AssertionError("Failed to create swap chain: " + translateVulkanResult(err));
+        }
+
+        if (oldSwapChain != VK13.VK_NULL_HANDLE) {
+        	KHRSwapchain.vkDestroySwapchainKHR(device, oldSwapChain, null);
+        }
+
+        IntBuffer pImageCount = MemoryUtil.memAllocInt(1);
+        err = KHRSwapchain.vkGetSwapchainImagesKHR(device, swapChain, pImageCount, null);
+        int imageCount = pImageCount.get(0);
+        if (err != VK13.VK_SUCCESS) {
+            throw new AssertionError("Failed to get number of swapchain images: " + translateVulkanResult(err));
+        }
+
+        LongBuffer pSwapchainImages = MemoryUtil.memAllocLong(imageCount);
+        err = KHRSwapchain.vkGetSwapchainImagesKHR(device, swapChain, pImageCount, pSwapchainImages);
+        if (err != VK13.VK_SUCCESS) {
+            throw new AssertionError("Failed to get swapchain images: " + translateVulkanResult(err));
+        }
+        MemoryUtil.memFree(pImageCount);
+
+        long[] images = new long[imageCount];
+        long[] imageViews = new long[imageCount];
+        LongBuffer pBufferView = MemoryUtil.memAllocLong(1);
+        VkImageViewCreateInfo colorAttachmentView = VkImageViewCreateInfo.calloc().sType$Default().format(colorFormat).viewType(VK13.VK_IMAGE_VIEW_TYPE_2D);
+        colorAttachmentView.subresourceRange().aspectMask(VK13.VK_IMAGE_ASPECT_COLOR_BIT).levelCount(1).layerCount(1);
+        for (int i = 0; i < imageCount; i++) {
+            images[i] = pSwapchainImages.get(i);
+            colorAttachmentView.image(images[i]);
+            err = VK13.vkCreateImageView(device, colorAttachmentView, null, pBufferView);
+            imageViews[i] = pBufferView.get(0);
+            if (err != VK13.VK_SUCCESS) {
+                throw new AssertionError("Failed to create image view: " + translateVulkanResult(err));
+            }
+        }
+        colorAttachmentView.free();
+        MemoryUtil.memFree(pBufferView);
+        MemoryUtil.memFree(pSwapchainImages);
+
+        Swapchain ret = new Swapchain();
+        ret.images = images;
+        ret.imageViews = imageViews;
+        ret.swapchainHandle = swapChain;
+        return ret;
+    }
+    
+    private void submitCommandBuffer(VkQueue queue, VkCommandBuffer commandBuffer) {
+        if (commandBuffer == null || commandBuffer.address() == NULL) {return;}
+        VkSubmitInfo submitInfo = VkSubmitInfo.calloc().sType$Default();
+        PointerBuffer pCommandBuffers = MemoryUtil.memAllocPointer(1).put(commandBuffer).flip();
+        submitInfo.pCommandBuffers(pCommandBuffers);
+        int err = VK13.vkQueueSubmit(queue, submitInfo, VK13.VK_NULL_HANDLE);
+        MemoryUtil.memFree(pCommandBuffers);
+        submitInfo.free();
+        if (err != VK13.VK_SUCCESS) {
+            throw new AssertionError("Failed to submit command buffer: " + translateVulkanResult(err));
+        }
+    }
+
+    private long[] createFramebuffers(VkDevice device, Swapchain swapchain, long renderPass, int width, int height) {
+        LongBuffer attachments = MemoryUtil.memAllocLong(1);
+        VkFramebufferCreateInfo fci = VkFramebufferCreateInfo.calloc().sType$Default().pAttachments(attachments).height(height).width(width).layers(1).renderPass(renderPass);
+        long[] framebuffers = new long[swapchain.images.length];
+        LongBuffer pFramebuffer = MemoryUtil.memAllocLong(1);
+        for (int i = 0; i < swapchain.images.length; i++) {
+            attachments.put(0, swapchain.imageViews[i]);
+            int err = VK13.vkCreateFramebuffer(device, fci, null, pFramebuffer);
+            long framebuffer = pFramebuffer.get(0);
+            if (err != VK13.VK_SUCCESS) {
+                throw new AssertionError("Failed to create framebuffer: " + translateVulkanResult(err));
+            }
+            framebuffers[i] = framebuffer;
+        }
+        MemoryUtil.memFree(attachments);
+        MemoryUtil.memFree(pFramebuffer);
+        fci.free();
+        return framebuffers;
+    }
+
+    private VkCommandBuffer[] createRenderCommandBuffers(VkDevice device, long commandPool, long[] framebuffers, long renderPass, int width, int height, long pipeline, long verticesBuf) {
+        VkCommandBufferAllocateInfo cmdBufAllocateInfo = VkCommandBufferAllocateInfo.calloc().sType$Default()
+                .commandPool(commandPool).level(VK13.VK_COMMAND_BUFFER_LEVEL_PRIMARY).commandBufferCount(framebuffers.length);
+        PointerBuffer pCommandBuffer = MemoryUtil.memAllocPointer(framebuffers.length);
+        int err = VK13.vkAllocateCommandBuffers(device, cmdBufAllocateInfo, pCommandBuffer);
+        if (err != VK13.VK_SUCCESS) {
+            throw new AssertionError("Failed to allocate render command buffer: " + translateVulkanResult(err));
+        }
+        VkCommandBuffer[] renderCommandBuffers = new VkCommandBuffer[framebuffers.length];
+        for (int i = 0; i < framebuffers.length; i++) {
+            renderCommandBuffers[i] = new VkCommandBuffer(pCommandBuffer.get(i), device);
+        }
+        MemoryUtil.memFree(pCommandBuffer);
+        cmdBufAllocateInfo.free();
+
+        VkCommandBufferBeginInfo cmdBufInfo = VkCommandBufferBeginInfo.calloc().sType$Default();
+        VkClearValue.Buffer clearValues = VkClearValue.calloc(1);
+        clearValues.color().float32(0, 100/255.0f).float32(1, 149/255.0f).float32(2, 237/255.0f).float32(3, 1.0f);
+
+        VkRenderPassBeginInfo renderPassBeginInfo = VkRenderPassBeginInfo.calloc().sType$Default().renderPass(renderPass).pClearValues(clearValues);
+        VkRect2D renderArea = renderPassBeginInfo.renderArea();
+        renderArea.offset().set(0, 0);
+        renderArea.extent().set(width, height);
+
+        for (int i = 0; i < renderCommandBuffers.length; ++i) {
+            renderPassBeginInfo.framebuffer(framebuffers[i]);
+
+            err = VK13.vkBeginCommandBuffer(renderCommandBuffers[i], cmdBufInfo);
+            if (err != VK13.VK_SUCCESS) {
+                throw new AssertionError("Failed to begin render command buffer: " + translateVulkanResult(err));
+            }
+
+            VK13.vkCmdBeginRenderPass(renderCommandBuffers[i], renderPassBeginInfo, VK13.VK_SUBPASS_CONTENTS_INLINE);
+
+            VkViewport.Buffer viewport = VkViewport.calloc(1).height(height).width(width).minDepth(0.0f).maxDepth(1.0f);
+            VK13.vkCmdSetViewport(renderCommandBuffers[i], 0, viewport);
+            viewport.free();
+
+            VkRect2D.Buffer scissor = VkRect2D.calloc(1);
+            scissor.extent().set(width, height);
+            scissor.offset().set(0, 0);
+            VK13.vkCmdSetScissor(renderCommandBuffers[i], 0, scissor);
+            scissor.free();
+
+            VK13.vkCmdBindPipeline(renderCommandBuffers[i], VK13.VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+            LongBuffer offsets = MemoryUtil.memAllocLong(1);
+            offsets.put(0, 0L);
+            LongBuffer pBuffers = MemoryUtil.memAllocLong(1);
+            pBuffers.put(0, verticesBuf);
+            VK13.vkCmdBindVertexBuffers(renderCommandBuffers[i], 0, pBuffers, offsets);
+            MemoryUtil.memFree(pBuffers);
+            MemoryUtil.memFree(offsets);
+            
+            VK13.vkCmdDraw(renderCommandBuffers[i], 3, 1, 0, 0);
+            VK13.vkCmdEndRenderPass(renderCommandBuffers[i]);
+
+            err = VK13.vkEndCommandBuffer(renderCommandBuffers[i]);
+            if (err != VK13.VK_SUCCESS) {
+                throw new AssertionError("Failed to begin render command buffer: " + translateVulkanResult(err));
+            }
+        }
+        renderPassBeginInfo.free();
+        clearValues.free();
+        cmdBufInfo.free();
+        return renderCommandBuffers;
+    }
     
 	private void setIcon(BufferedImage iconimage) {
 		DataBufferInt iconimagedataint = (DataBufferInt)iconimage.getRaster().getDataBuffer();
@@ -1146,6 +1452,16 @@ public class JavaVulkanCLRenderEngine {
 		return trianglelist;
 	}
 
+    private class ResizeCallback extends GLFWFramebufferSizeCallback {
+        public void invoke(long window, int width, int height) {
+            if (width <= 0 || height <= 0)
+                return;
+            screenwidth = width;
+            screenheight = height;
+            swapchainRecreator.mustRecreate = true;
+        }
+    };
+	
 	private class KeyProcessor implements GLFWKeyCallbackI {
 		@Override public void invoke(long window, int key, int scancode, int action, int mods) {
 			if (action==GLFW.GLFW_PRESS) {
