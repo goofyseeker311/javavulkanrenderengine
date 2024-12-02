@@ -20,22 +20,16 @@ float8 planerefractionray(float8 vray, float4 vplane, float refraction1, float r
 float4 sourceblend(float4 source, float alpha);
 float4 sourceoverblend(float4 dest, float4 source, float alpha);
 float4 sourcemixblend(float4 dest, float4 source, float alpha);
-float8 renderray4(float8 vray, int *imh, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit);
-float8 renderray3(float8 vray, int *imh, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit);
-float8 renderray2(float8 vray, int *imh, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit);
-float8 renderray(float8 vray, int *imh, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit);
-void movecamera(float *cam, const float *cmv);
-void clearview(float *img, float *imz, int *imh, float *cam);
-void transformobject(float *tli, const float *tri, const int *trc, const float *obj, const int *obc);
-void rendercross(float *img, float *imz, int *imh, float *cam);
-void renderrayview(float *img, float *imz, int *imh, float *cam, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit, const int *nor);
-void renderplaneview(float *img, float *imz, int *imh, float *cam, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit, const int *nor);
-kernel void movecamerakernel(global float *cam, global const float *cmv);
-kernel void clearviewkernel(global float *img, global float *imz, global int *imh, global float *cam);
-kernel void transformobjectkernel(global float *tli, global const float *tri, global const int *trc, global const float *obj, global const int *obc);
-kernel void rendercrosskernel(global float *img, global float *imz, global int *imh, global float *cam);
-kernel void renderrayviewkernel(global float *img, global float *imz, global int *imh, global float *cam, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit, global const int *nor);
-kernel void renderplaneviewkernel(global float *img, global float *imz, global int *imh, global float *cam, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit, global const int *nor);
+float8 renderray4(float8 vray, int *imh, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit);
+float8 renderray3(float8 vray, int *imh, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit);
+float8 renderray2(float8 vray, int *imh, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit);
+float8 renderray(float8 vray, int *imh, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit);
+kernel void movecamera(global float *cam, global const float *cmv);
+kernel void clearview(global float *img, global float *imz, global int *imh, global float *cam);
+kernel void transformobject(global float *tli, global const float *tri, global const int *trc, global const float *obj, global const int *obc);
+kernel void rendercross(global float *img, global float *imz, global int *imh, global float *cam);
+kernel void renderrayview(global float *img, global float *imz, global int *imh, global float *cam, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit, global const int *nor);
+kernel void renderplaneview(global float *img, global float *imz, global int *imh, global float *cam, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit, global const int *nor);
 
 float4 matrixposmult(const float4 pos, const float16 mat) {
 	float4 retpos = (float4)(0.0f);
@@ -339,7 +333,7 @@ float4 sourcemixblend(float4 dest, float4 source, float alpha) {
 	return retcolor;
 }
 
-float8 renderray4(float8 vray, int *imh, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit) {
+float8 renderray4(float8 vray, int *imh, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit) {
 	float8 raycolordist = (float8)(NAN);
 	float4 campos = vray.s0123;
 	float4 camdir = vray.s4567;
@@ -407,14 +401,17 @@ float8 renderray4(float8 vray, int *imh, const float *tri, const int *trc, const
 			if ((drawdistance>0.001f)&&(drawdistance<rayz)) {
 				rayz = drawdistance;
 				imh[0] = tid;
-				float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
-				float4 texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+				float4 texcolor = trifacecolor;
+				if (triid>=0) {
+					float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
+					texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+				}
 				float4 pixelcolor = (float4)(0.0f);
 				if (isdoublesidednorm||isfrontfacenorm) {
 					if (tlit) {
-						pixelcolor = triemissivecolor + trilightmapcolor*texcolor*trifacecolor*(1.0f-trimetallic);
+						pixelcolor = triemissivecolor + trilightmapcolor*texcolor*(1.0f-trimetallic);
 					} else {
-						pixelcolor = triemissivecolor + texcolor*trifacecolor;
+						pixelcolor = triemissivecolor + texcolor;
 					}
 				}
 				if (triopacity<1.0f) {
@@ -451,7 +448,7 @@ float8 renderray4(float8 vray, int *imh, const float *tri, const int *trc, const
 	}
 	return raycolordist;
 }
-float8 renderray3(float8 vray, int *imh, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit) {
+float8 renderray3(float8 vray, int *imh, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit) {
 	float8 raycolordist = (float8)(NAN);
 	float4 campos = vray.s0123;
 	float4 camdir = vray.s4567;
@@ -519,14 +516,17 @@ float8 renderray3(float8 vray, int *imh, const float *tri, const int *trc, const
 			if ((drawdistance>0.001f)&&(drawdistance<rayz)) {
 				rayz = drawdistance;
 				imh[0] = tid;
-				float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
-				float4 texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+				float4 texcolor = trifacecolor;
+				if (triid>=0) {
+					float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
+					texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+				}
 				float4 pixelcolor = (float4)(0.0f);
 				if (isdoublesidednorm||isfrontfacenorm) {
 					if (tlit) {
-						pixelcolor = triemissivecolor + trilightmapcolor*texcolor*trifacecolor*(1.0f-trimetallic);
+						pixelcolor = triemissivecolor + trilightmapcolor*texcolor*(1.0f-trimetallic);
 					} else {
-						pixelcolor = triemissivecolor + texcolor*trifacecolor;
+						pixelcolor = triemissivecolor + texcolor;
 					}
 				}
 				if (triopacity<1.0f) {
@@ -563,7 +563,7 @@ float8 renderray3(float8 vray, int *imh, const float *tri, const int *trc, const
 	}
 	return raycolordist;
 }
-float8 renderray2(float8 vray, int *imh, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit) {
+float8 renderray2(float8 vray, int *imh, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit) {
 	float8 raycolordist = (float8)(NAN);
 	float4 campos = vray.s0123;
 	float4 camdir = vray.s4567;
@@ -631,14 +631,17 @@ float8 renderray2(float8 vray, int *imh, const float *tri, const int *trc, const
 			if ((drawdistance>0.001f)&&(drawdistance<rayz)) {
 				rayz = drawdistance;
 				imh[0] = tid;
-				float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
-				float4 texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+				float4 texcolor = trifacecolor;
+				if (triid>=0) {
+					float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
+					texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+				}
 				float4 pixelcolor = (float4)(0.0f);
 				if (isdoublesidednorm||isfrontfacenorm) {
 					if (tlit) {
-						pixelcolor = triemissivecolor + trilightmapcolor*texcolor*trifacecolor*(1.0f-trimetallic);
+						pixelcolor = triemissivecolor + trilightmapcolor*texcolor*(1.0f-trimetallic);
 					} else {
-						pixelcolor = triemissivecolor + texcolor*trifacecolor;
+						pixelcolor = triemissivecolor + texcolor;
 					}
 				}
 				if (triopacity<1.0f) {
@@ -675,7 +678,7 @@ float8 renderray2(float8 vray, int *imh, const float *tri, const int *trc, const
 	}
 	return raycolordist;
 }
-float8 renderray(float8 vray, int *imh, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit) {
+float8 renderray(float8 vray, int *imh, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit) {
 	float8 raycolordist = (float8)(NAN);
 	float4 campos = vray.s0123;
 	float4 camdir = vray.s4567;
@@ -743,14 +746,17 @@ float8 renderray(float8 vray, int *imh, const float *tri, const int *trc, const 
 			if ((drawdistance>0.001f)&&(drawdistance<rayz)) {
 				rayz = drawdistance;
 				imh[0] = tid;
-				float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
-				float4 texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+				float4 texcolor = trifacecolor;
+				if (triid>=0) {
+					float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
+					texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+				}
 				float4 pixelcolor = (float4)(0.0f);
 				if (isdoublesidednorm||isfrontfacenorm) {
 					if (tlit) {
-						pixelcolor = triemissivecolor + trilightmapcolor*texcolor*trifacecolor*(1.0f-trimetallic);
+						pixelcolor = triemissivecolor + trilightmapcolor*texcolor*(1.0f-trimetallic);
 					} else {
-						pixelcolor = triemissivecolor + texcolor*trifacecolor;
+						pixelcolor = triemissivecolor + texcolor;
 					}
 				}
 				raycolordist.s0 = pixelcolor.s0;
@@ -764,7 +770,7 @@ float8 renderray(float8 vray, int *imh, const float *tri, const int *trc, const 
 	return raycolordist;
 }
 
-void movecamera(float *cam, const float *cmv) {
+kernel void movecamera(global float *cam, global const float *cmv) {
 	float4 campos = (float4)(cam[0],cam[1],cam[2],0.0f);
 	float2 camfov = radians((float2)(cam[3],cam[4]));
 	int2 camres = (int2)((int)cam[5],(int)cam[6]);
@@ -795,7 +801,7 @@ void movecamera(float *cam, const float *cmv) {
 	cam[22] = cammat.sF;
 }
 
-void clearview(float *img, float *imz, int *imh, float *cam) {
+kernel void clearview(global float *img, global float *imz, global int *imh, global float *cam) {
 	unsigned int xid = get_global_id(0);
 	unsigned int vid = get_global_id(1);
 	int2 camres = (int2)((int)cam[5],(int)cam[6]);
@@ -816,7 +822,7 @@ void clearview(float *img, float *imz, int *imh, float *cam) {
 	}
 }
 
-void transformobject(float *tli, const float *tri, const int *trc, const float *obj, const int *obc) {
+kernel void transformobject(global float *tli, global const float *tri, global const int *trc, global const float *obj, global const int *obc) {
 	unsigned int tlid = get_global_id(0);
 	unsigned int oid = get_global_id(1);
 	unsigned int tid = get_global_id(2);
@@ -860,7 +866,7 @@ void transformobject(float *tli, const float *tri, const int *trc, const float *
 	}
 }
 
-void lightobject(float *img, float *imz, int *imh, float *tli, const float *tri, const int *trc, const int *tex, const int *tes) {
+kernel void lightobject(global float *img, global float *imz, global int *imh, global float *tli, global const float *tri, global const int *trc, global const int *tex, global const int *tes) {
 	unsigned int tid = get_global_id(2);
 
 	const int ts = 35, lit = 1, nor = 1, cmstep = 32*32;
@@ -882,15 +888,15 @@ void lightobject(float *img, float *imz, int *imh, float *tli, const float *tri,
 	float tricam4[23] = {centerpos.x,centerpos.y,centerpos.z, 90.0f,90.0f,32.0f,32.0f,tm4[0],tm4[1],tm4[2],tm4[3],tm4[4],tm4[5],tm4[6],tm4[7],tm4[8],tm4[9],tm4[10],tm4[11],tm4[12],tm4[13],tm4[14],tm4[15]};
 	float tricam5[23] = {centerpos.x,centerpos.y,centerpos.z, 90.0f,90.0f,32.0f,32.0f,tm5[0],tm5[1],tm5[2],tm5[3],tm5[4],tm5[5],tm5[6],tm5[7],tm5[8],tm5[9],tm5[10],tm5[11],tm5[12],tm5[13],tm5[14],tm5[15]};
 	float tricam6[23] = {centerpos.x,centerpos.y,centerpos.z, 90.0f,90.0f,32.0f,32.0f,tm6[0],tm6[1],tm6[2],tm6[3],tm6[4],tm6[5],tm6[6],tm6[7],tm6[8],tm6[9],tm6[10],tm6[11],tm6[12],tm6[13],tm6[14],tm6[15]};
-	renderplaneview(&img[cmstep*0+cmstep*6*tid], &imz[cmstep*0+cmstep*6*tid], &imh[0+tid*6], &tricam, tri, trc, tex, tes, &lit, &nor);
-	renderplaneview(&img[cmstep*1+cmstep*6*tid], &imz[cmstep*1+cmstep*6*tid], &imh[1+tid*6], &tricam2, tri, trc, tex, tes, &lit, &nor);
-	renderplaneview(&img[cmstep*2+cmstep*6*tid], &imz[cmstep*2+cmstep*6*tid], &imh[2+tid*6], &tricam3, tri, trc, tex, tes, &lit, &nor);
-	renderplaneview(&img[cmstep*3+cmstep*6*tid], &imz[cmstep*3+cmstep*6*tid], &imh[3+tid*6], &tricam4, tri, trc, tex, tes, &lit, &nor);
-	renderplaneview(&img[cmstep*4+cmstep*6*tid], &imz[cmstep*4+cmstep*6*tid], &imh[4+tid*6], &tricam5, tri, trc, tex, tes, &lit, &nor);
-	renderplaneview(&img[cmstep*5+cmstep*6*tid], &imz[cmstep*5+cmstep*6*tid], &imh[5+tid*6], &tricam6, tri, trc, tex, tes, &lit, &nor);
+	//renderplaneview(&img[cmstep*0+cmstep*6*tid], &imz[cmstep*0+cmstep*6*tid], &imh[0+tid*6], &tricam, tri, trc, tex, tes, &lit, &nor);
+	//renderplaneview(&img[cmstep*1+cmstep*6*tid], &imz[cmstep*1+cmstep*6*tid], &imh[1+tid*6], &tricam2, tri, trc, tex, tes, &lit, &nor);
+	//renderplaneview(&img[cmstep*2+cmstep*6*tid], &imz[cmstep*2+cmstep*6*tid], &imh[2+tid*6], &tricam3, tri, trc, tex, tes, &lit, &nor);
+	//renderplaneview(&img[cmstep*3+cmstep*6*tid], &imz[cmstep*3+cmstep*6*tid], &imh[3+tid*6], &tricam4, tri, trc, tex, tes, &lit, &nor);
+	//renderplaneview(&img[cmstep*4+cmstep*6*tid], &imz[cmstep*4+cmstep*6*tid], &imh[4+tid*6], &tricam5, tri, trc, tex, tes, &lit, &nor);
+	//renderplaneview(&img[cmstep*5+cmstep*6*tid], &imz[cmstep*5+cmstep*6*tid], &imh[5+tid*6], &tricam6, tri, trc, tex, tes, &lit, &nor);
 }
 
-void rendercross(float *img, float *imz, int *imh, float *cam) {
+kernel void rendercross(global float *img, global float *imz, global int *imh, global float *cam) {
 	int2 camres = (int2)((int)cam[5],(int)cam[6]);
 	int2 camhalfres = camres/2;
 	int crosslength = 20;
@@ -912,7 +918,7 @@ void rendercross(float *img, float *imz, int *imh, float *cam) {
 	}
 }
 
-void renderrayview(float *img, float *imz, int *imh, float *cam, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit, const int *nor) {
+kernel void renderrayview(global float *img, global float *imz, global int *imh, global float *cam, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit, global const int *nor) {
 	unsigned int xid = get_global_id(0);
 	unsigned int yid = get_global_id(1);
 	float4 campos = (float4)(cam[0],cam[1],cam[2],0.0f);
@@ -953,7 +959,7 @@ void renderrayview(float *img, float *imz, int *imh, float *cam, const float *tr
 	}
 }
 
-void renderplaneview(float *img, float *imz, int *imh, float *cam, const float *tri, const int *trc, const int *tex, const int *tes, const int *lit, const int *nor) {
+kernel void renderplaneview(global float *img, global float *imz, global int *imh, global float *cam, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit, global const int *nor) {
 	unsigned int xid = get_global_id(0);
 	unsigned int vid = get_global_id(1);
 	float4 campos = (float4)(cam[0],cam[1],cam[2],0.0f);
@@ -1121,14 +1127,17 @@ void renderplaneview(float *img, float *imz, int *imh, float *cam, const float *
 						if (drawdistance<imz[pixelind]) {
 							imz[pixelind] = drawdistance;
 							if ((xid==camhalfres.x)&&(y==camhalfres.y)) {imh[0] = tid;}
-							float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
-							float4 texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+							float4 texcolor = trifacecolor;
+							if (triid>=0) {
+								float4 texrgbaf = convert_float4(as_uchar4(tex[texind])) / 255.0f;
+								texcolor = (float4)(texrgbaf.s2, texrgbaf.s1, texrgbaf.s0, texrgbaf.s3);
+							}
 							float4 pixelcolor = (float4)(0.0f);
 							if (isdoublesidednorm||isfrontfacenorm) {
 								if (tlit) {
-									pixelcolor = triemissivecolor + trilightmapcolor*texcolor*trifacecolor*(1.0f-trimetallic);
+									pixelcolor = triemissivecolor + trilightmapcolor*texcolor*(1.0f-trimetallic);
 								} else {
-									pixelcolor = triemissivecolor + texcolor*trifacecolor;
+									pixelcolor = triemissivecolor + texcolor;
 								}
 							}
 							if (triopacity<1.0f) {
@@ -1167,11 +1176,3 @@ void renderplaneview(float *img, float *imz, int *imh, float *cam, const float *
 		}
 	}
 }
-
-kernel void movecamerakernel(global float *cam, global const float *cmv) {movecamera(cam, cmv);}
-kernel void clearviewkernel(global float *img, global float *imz, global int *imh, global float *cam) {clearview(img, imz, imh, cam);}
-kernel void transformobjectkernel(global float *tli, global const float *tri, global const int *trc, global const float *obj, global const int *obc) {transformobject(tli, tri, trc, obj, obc);}
-kernel void lightobjectkernel(global float *img, global float *imz, global int *imh, global float *tli, global const float *tri, global const int *trc, global const int *tex, global const int *tes) {lightobject(img, imz, imh, tli, tri, trc, tex, tes);}
-kernel void rendercrosskernel(global float *img, global float *imz, global int *imh, global float *cam) {rendercross(img, imz, imh, cam);}
-kernel void renderrayviewkernel(global float *img, global float *imz, global int *imh, global float *cam, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit, global const int *nor) {renderrayview(img, imz, imh, cam, tri, trc, tex, tes, lit, nor);}
-kernel void renderplaneviewkernel(global float *img, global float *imz, global int *imh, global float *cam, global const float *tri, global const int *trc, global const int *tex, global const int *tes, global const int *lit, global const int *nor) {renderplaneview(img, imz, imh, cam, tri, trc, tex, tes, lit, nor);}
